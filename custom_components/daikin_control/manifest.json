@@ -1,12 +1,12 @@
 {
+  "domain": "daikin_control",
+  "name": "Daikin Control Cloud",
   "codeowners": ["@cothal"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/cothal/ha-daikin-control",
-  "domain": "daikin_control",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/cothal/ha-daikin-control/issues",
-  "name": "Daikin Control Cloud",
   "requirements": [],
   "version": "1.0.1"
 }
