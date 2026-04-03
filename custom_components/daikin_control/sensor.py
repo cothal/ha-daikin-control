@@ -8,7 +8,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -32,12 +32,34 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
+    # Track which keys already have entities
+    known_keys: set[str] = set()
     entities = []
     if coordinator.data:
         for key, data in coordinator.data.items():
+            known_keys.add(key)
             entities.append(DaikinControlSensor(coordinator, entry, key, data))
 
     async_add_entities(entities, update_before_add=False)
+
+    # Listen for new parameters appearing in future updates
+    @callback
+    def _async_check_new_entities() -> None:
+        """Add entities for newly discovered parameters."""
+        if not coordinator.data:
+            return
+        new_entities = []
+        for key, data in coordinator.data.items():
+            if key not in known_keys:
+                known_keys.add(key)
+                new_entities.append(
+                    DaikinControlSensor(coordinator, entry, key, data)
+                )
+                _LOGGER.info("Discovered new parameter: %s", key)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    coordinator.async_add_listener(_async_check_new_entities)
 
 
 class DaikinControlSensor(CoordinatorEntity, SensorEntity):
