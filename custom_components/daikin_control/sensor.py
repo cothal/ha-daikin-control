@@ -7,6 +7,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -21,6 +22,13 @@ DEVICE_TYPE_NAMES = {
     "direct": "Heizkreis",
     "water": "Warmwasser",
 }
+
+# Prefixes for parameters that should be disabled by default
+DISABLED_BY_DEFAULT_PREFIXES = (
+    "cHEIZPROG_",
+    "cMODUS_URLAUB_",
+    "cMINUTE",
+)
 
 
 async def async_setup_entry(
@@ -94,6 +102,10 @@ class DaikinControlSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_unique_id = f"daikin_control_{entry.data.get('installation_id')}_{key}"
         self._attr_state_class = SensorStateClass.MEASUREMENT
+
+        # Disable heating programs and other noisy parameters by default
+        if any(self._param_name.startswith(prefix) for prefix in DISABLED_BY_DEFAULT_PREFIXES):
+            self._attr_entity_registry_enabled_default = False
 
         self._attr_device_info = {
             "identifiers": {(DOMAIN, f"{entry.data.get('installation_id')}_{self._device_name}")},
