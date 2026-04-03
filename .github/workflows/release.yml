@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update manifest version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' \
+            custom_components/daikin_control/manifest.json > tmp.json \
+            && mv tmp.json custom_components/daikin_control/manifest.json
+
+      - name: Create zip
+        run: |
+          cd custom_components/daikin_control
+          zip -r ../../daikin_control.zip .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: daikin_control.zip

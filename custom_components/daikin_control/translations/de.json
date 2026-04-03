@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Daikin Control Cloud",
+        "description": "Zugangsdaten fuer daikin-control.com eingeben",
+        "data": {
+          "username": "Benutzername",
+          "password": "Passwort",
+          "installation_id": "Installation ID (z.B. 48701EB610F5)",
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Login fehlgeschlagen - Benutzername oder Passwort falsch",
+      "unknown": "Unbekannter Fehler"
+    }
+  }
+}

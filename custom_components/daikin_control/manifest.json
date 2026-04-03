@@ -1,0 +1,11 @@
+{
+  "domain": "daikin_control",
+  "name": "Daikin Control Cloud",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "",
+  "iot_class": "cloud_polling",
+  "requirements": ["aiohttp"],
+  "version": "1.0.0"
+}
