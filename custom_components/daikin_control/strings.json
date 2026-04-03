@@ -7,7 +7,7 @@
         "data": {
           "username": "Benutzername",
           "password": "Passwort",
-          "installation_id": "Installation ID (z.B. 48701EB610F5)",
+          "installation_id": "Installation ID (z.B. AB1234CD56EF)",
           "scan_interval": "Abfrageintervall (Sekunden)"
         }
       }

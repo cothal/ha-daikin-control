@@ -54,7 +54,7 @@ This integration is designed for systems using the **RoCon G1 Gateway** to uploa
 3. Enter your credentials:
    - **Username**: Your daikin-control.com username
    - **Password**: Your daikin-control.com password
-   - **Installation ID**: Your installation ID (e.g., `48701EB610F5`)
+   - **Installation ID**: Your installation ID (e.g., `AB1234CD56EF` - visible on the overview page at daikin-control.com)
    - **Scan interval**: Polling interval in seconds (default: 120, minimum: 30)
 
 ## Available Sensors
