@@ -23,12 +23,36 @@ DEVICE_TYPE_NAMES = {
     "water": "Warmwasser",
 }
 
-# Prefixes for parameters that should be disabled by default
-DISABLED_BY_DEFAULT_PREFIXES = (
-    "cHEIZPROG_",
-    "cMODUS_URLAUB_",
-    "cMINUTE",
-)
+# Parameters that should be ENABLED by default (the important ones)
+# Everything else will be disabled by default
+ENABLED_BY_DEFAULT = {
+    "cAUSSENTEMP",
+    "cAUSSENTEMP_WAERMEPUMPE",
+    "cSPEICHERISTTEMP",
+    "eVORLAUFISTTEMP",
+    "eVORLAUFSOLLTEMP",
+    "cKESSELISTTEMP",
+    "cKESSELSOLLTEMP",
+    "cRUECKLAUFTEMP",
+    "cRAUMISTTEMP",
+    "cRAUMSOLLTEMP_I",
+    "cRAUMSOLLTEMP_II",
+    "cRAUMSOLLTEMP_III",
+    "cT_TVBH",
+    "cT_TVBHMIX",
+    "cT_TVBH1",
+    "cVOLUMENSTROM",
+    "cPUMPENLAUFZEIT",
+    "cKOMPRESSORLAUFZEIT",
+    "cPROGRAMMSCHALTER",
+    "cWW_AKTIV",
+    "cEINMAL_WW_AKTIV",
+    "cFEHLER_AKTUELL",
+    "eHZKKURVE",
+    "eMAX_VORLAUFTEMP",
+    "cEINSTELL_SPEICHERSOLLTEMP",
+    "cVERSTELLTE_SPEICHERSOLLTEMP",
+}
 
 
 async def async_setup_entry(
@@ -103,8 +127,8 @@ class DaikinControlSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"daikin_control_{entry.data.get('installation_id')}_{key}"
         self._attr_state_class = SensorStateClass.MEASUREMENT
 
-        # Disable heating programs and other noisy parameters by default
-        if any(self._param_name.startswith(prefix) for prefix in DISABLED_BY_DEFAULT_PREFIXES):
+        # Only enable important sensors by default, disable the rest
+        if self._param_name not in ENABLED_BY_DEFAULT:
             self._attr_entity_registry_enabled_default = False
 
         self._attr_device_info = {
