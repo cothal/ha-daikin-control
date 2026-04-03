@@ -64,13 +64,14 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    # Track which keys already have entities
+    # Track which keys already have entities - only create important ones
     known_keys: set[str] = set()
     entities = []
     if coordinator.data:
         for key, data in coordinator.data.items():
             known_keys.add(key)
-            entities.append(DaikinControlSensor(coordinator, entry, key, data))
+            if data.get("name", "") in ENABLED_BY_DEFAULT:
+                entities.append(DaikinControlSensor(coordinator, entry, key, data))
 
     async_add_entities(entities, update_before_add=False)
 
@@ -84,10 +85,11 @@ async def async_setup_entry(
         for key, data in coordinator.data.items():
             if key not in known_keys:
                 known_keys.add(key)
-                new_entities.append(
-                    DaikinControlSensor(coordinator, entry, key, data)
-                )
-                _LOGGER.info("Discovered new parameter: %s", key)
+                if data.get("name", "") in ENABLED_BY_DEFAULT:
+                    new_entities.append(
+                        DaikinControlSensor(coordinator, entry, key, data)
+                    )
+                    _LOGGER.info("Discovered new parameter: %s", key)
         if new_entities:
             async_add_entities(new_entities)
 
