@@ -24,6 +24,13 @@ class DaikinControlApi:
         self._session: aiohttp.ClientSession | None = None
         self._logged_in = False
 
+    async def _close_and_reset_session(self) -> None:
+        """Close existing session to force a fresh one on next login."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+        self._session = None
+        self._logged_in = False
+
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             jar = aiohttp.CookieJar(unsafe=True)
@@ -133,9 +140,10 @@ class DaikinControlApi:
                         if await self.login():
                             return await self.get_parameters(limit)
                         raise DaikinControlApiError("Re-login failed")
-                elif resp.status in (302, 301):
-                    _LOGGER.info("Session expired (redirect), re-logging in")
+                elif resp.status in (301, 302, 401, 403):
+                    _LOGGER.info("Session expired (status %s), re-logging in", resp.status)
                     self._logged_in = False
+                    await self._close_and_reset_session()
                     if await self.login():
                         return await self.get_parameters(limit)
                     raise DaikinControlApiError("Re-login failed")
