@@ -1,5 +1,6 @@
 """API client for Daikin Control Cloud Services."""
 import logging
+import time
 
 import aiohttp
 
@@ -23,6 +24,8 @@ class DaikinControlApi:
         self._installation_id = installation_id
         self._session: aiohttp.ClientSession | None = None
         self._logged_in = False
+        self._login_time: float = 0
+        self._session_max_age: int = 5 * 3600  # Refresh before 6h expiry
 
     async def _close_and_reset_session(self) -> None:
         """Close existing session to force a fresh one on next login."""
@@ -90,6 +93,7 @@ class DaikinControlApi:
                     _LOGGER.debug("Cookies after login: %s", list(cookies.keys()))
                     if "PHPSESSID" in cookies:
                         self._logged_in = True
+                        self._login_time = time.time()
                         _LOGGER.info("Daikin Control login successful")
                         return True
 
@@ -106,6 +110,11 @@ class DaikinControlApi:
             return False
 
     async def get_parameters(self, limit: int = 100) -> list[dict]:
+        # Proactively refresh session before it expires (5h of 6h max)
+        if self._logged_in and (time.time() - self._login_time) > self._session_max_age:
+            _LOGGER.info("Session approaching expiry, proactively refreshing")
+            await self._close_and_reset_session()
+
         session = await self._ensure_session()
         if not self._logged_in:
             if not await self.login():
@@ -137,6 +146,7 @@ class DaikinControlApi:
                     else:
                         _LOGGER.info("Got HTML instead of JSON, session expired")
                         self._logged_in = False
+                        await self._close_and_reset_session()
                         if await self.login():
                             return await self.get_parameters(limit)
                         raise DaikinControlApiError("Re-login failed")
