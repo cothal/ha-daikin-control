@@ -16,5 +16,16 @@
       "invalid_auth": "Login fehlgeschlagen - Benutzername oder Passwort falsch",
       "unknown": "Unbekannter Fehler"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Daikin Control Cloud Optionen",
+        "description": "Abfrageintervall anpassen (30-3600 Sekunden)",
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      }
+    }
   }
 }

@@ -16,5 +16,16 @@
       "invalid_auth": "Login failed - invalid username or password",
       "unknown": "Unknown error"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Daikin Control Cloud Options",
+        "description": "Adjust the scan interval (30-3600 seconds)",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
   }
 }

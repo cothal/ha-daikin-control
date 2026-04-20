@@ -4,6 +4,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.core import callback
 
 from .api import DaikinControlApi
 from .const import (
@@ -22,6 +23,12 @@ class DaikinControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Daikin Control."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Create the options flow."""
+        return DaikinControlOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -62,4 +69,34 @@ class DaikinControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+
+class DaikinControlOptionsFlow(config_entries.OptionsFlow):
+    """Options flow for Daikin Control."""
+
+    def __init__(self, config_entry):
+        """Initialize options flow."""
+        self._entry_id = config_entry.entry_id
+
+    async def async_step_init(self, user_input=None):
+        """Manage options."""
+        entry = self.hass.config_entries.async_get_entry(self._entry_id)
+        current_interval = entry.options.get(
+            CONF_SCAN_INTERVAL,
+            entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        )
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SCAN_INTERVAL, default=current_interval
+                    ): vol.All(int, vol.Range(min=30, max=3600)),
+                }
+            ),
         )
