@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
@@ -24,7 +25,6 @@ DEVICE_TYPE_NAMES = {
 }
 
 # Parameters that should be ENABLED by default (the important ones)
-# Everything else will be disabled by default
 ENABLED_BY_DEFAULT = {
     "cAUSSENTEMP",
     "cAUSSENTEMP_WAERMEPUMPE",
@@ -96,8 +96,12 @@ async def async_setup_entry(
     coordinator.async_add_listener(_async_check_new_entities)
 
 
-class DaikinControlSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for a Daikin Control parameter."""
+class DaikinControlSensor(CoordinatorEntity, RestoreSensor):
+    """Sensor for a Daikin Control parameter.
+
+    Uses RestoreSensor so the last known value is retained across restarts
+    and when the parameter temporarily disappears from the API response.
+    """
 
     def __init__(
         self,
@@ -111,6 +115,10 @@ class DaikinControlSensor(CoordinatorEntity, SensorEntity):
         self._param_name = initial_data["name"]
         self._device_name = initial_data["device_name"]
         self._device_type = initial_data["device_type"]
+
+        # Cached last known values (used when coordinator.data is missing this key)
+        self._last_value = None
+        self._last_update_iso: str | None = None
 
         device_label = DEVICE_TYPE_NAMES.get(self._device_type, self._device_type)
         param_info = PARAMETER_MAP.get(self._param_name)
@@ -140,25 +148,62 @@ class DaikinControlSensor(CoordinatorEntity, SensorEntity):
             "model": f"{self._device_name} ({self._device_type})",
         }
 
+    async def async_added_to_hass(self) -> None:
+        """Restore last known value on startup."""
+        await super().async_added_to_hass()
+        last_sensor_data = await self.async_get_last_sensor_data()
+        if last_sensor_data is not None:
+            self._last_value = last_sensor_data.native_value
+            _LOGGER.debug(
+                "Restored %s to %s", self._attr_name, self._last_value
+            )
+        # Also try to restore last state/attributes
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.attributes:
+            saved_update = last_state.attributes.get("last_update")
+            if saved_update:
+                self._last_update_iso = saved_update
+
+    @property
+    def available(self) -> bool:
+        """Always report available once we have any value (current or restored)."""
+        if self.coordinator.data and self._key in self.coordinator.data:
+            return True
+        if self._last_value is not None:
+            return True
+        return False
+
     @property
     def native_value(self):
+        """Return current value or last known value."""
         if self.coordinator.data and self._key in self.coordinator.data:
             val = self.coordinator.data[self._key].get("value", "")
             try:
-                return float(val)
+                parsed = float(val)
             except (ValueError, TypeError):
-                return val
-        return None
+                parsed = val
+            # Cache for future fallback
+            self._last_value = parsed
+            ts = self.coordinator.data[self._key].get("date", 0)
+            if ts:
+                self._last_update_iso = datetime.fromtimestamp(ts).isoformat()
+            return parsed
+        # Fallback to last known value
+        return self._last_value
 
     @property
     def extra_state_attributes(self):
+        attrs = {
+            "parameter": self._param_name,
+            "device": self._device_name,
+            "device_type": self._device_type,
+        }
         if self.coordinator.data and self._key in self.coordinator.data:
-            data = self.coordinator.data[self._key]
-            ts = data.get("date", 0)
-            return {
-                "parameter": self._param_name,
-                "device": self._device_name,
-                "device_type": self._device_type,
-                "last_update": datetime.fromtimestamp(ts).isoformat() if ts else None,
-            }
-        return {}
+            ts = self.coordinator.data[self._key].get("date", 0)
+            attrs["last_update"] = (
+                datetime.fromtimestamp(ts).isoformat() if ts else None
+            )
+        else:
+            attrs["last_update"] = self._last_update_iso
+            attrs["stale"] = True
+        return attrs
