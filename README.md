@@ -9,27 +9,28 @@ This integration is designed for systems using the **RoCon G1 Gateway** to uploa
 
 ## Supported Systems
 
-- Rotex HPSU (Heat Pump) series
+- Rotex HPSU Compact / Compact Ultra
 - Daikin Altherma (with RoCon controller)
 - Any Daikin/Rotex heating system connected via RoCon G1 Gateway to daikin-control.com
 
 ## Features
 
-- Automatic login and session management (sessions auto-renew every 6 hours)
-- Sensors for all available parameters:
-  - Temperatures: outdoor, supply, return, boiler, room, storage tank
-  - Flow rate (Volumenstrom)
-  - Pump and compressor runtime
-  - Heating program status
-  - Error codes
-- Two device entities: heating circuit (HC1) and hot water circuit (HG1)
-- Configurable polling interval (default: 120 seconds)
+- **Automatic login and session management** with retry logic and resilient handling of cloud outages
+- **Persistent sensor values** (RestoreSensor) - last known values survive HA restarts and brief data gaps
+- **Gateway online status detection** via dedicated cloud API endpoint:
+  - `binary_sensor.daikin_gateway_online` - RoCon G1 to cloud connection
+  - `binary_sensor.daikin_canbus_online` - RoCon G1 to heat pump connection
+  - Configurable offline threshold (60-3600 s)
+- **Time-since-contact sensors** for use in automations (auto-reboot of the gateway via smart plug etc.)
+- **Whitelist of important sensors** enabled by default (temperatures, flow, runtimes, status). Other parameters are created as disabled entities, can be enabled manually.
+- **Configurable polling interval** (30-3600 s, default 120 s)
+- **Two device entities**: heating circuit (HC1) and hot water circuit (HG1) plus a Cloud Gateway device
 
 ## Prerequisites
 
 - A Daikin/Rotex heating system with RoCon G1 Gateway
 - An active account on [daikin-control.com](https://www.daikin-control.com)
-- Your **Installation ID** (visible in the daikin-control.com URL or overview page)
+- Your **Installation ID** (visible on the overview page after login)
 
 ## Installation
 
@@ -54,40 +55,99 @@ This integration is designed for systems using the **RoCon G1 Gateway** to uploa
 3. Enter your credentials:
    - **Username**: Your daikin-control.com username
    - **Password**: Your daikin-control.com password
-   - **Installation ID**: Your installation ID (e.g., `AB1234CD56EF` - visible on the overview page at daikin-control.com)
-   - **Scan interval**: Polling interval in seconds (default: 120, minimum: 30)
+   - **Installation ID**: Your installation ID (e.g., `AB1234CD56EF`)
+   - **Scan interval**: Polling interval in seconds (default 120)
 
-## Available Sensors
+After setup, you can adjust the **scan interval** and **gateway offline threshold** under the integration's *Configure* button.
 
-| Sensor | Unit | Description |
-|--------|------|-------------|
-| Aussentemperatur | °C | Outdoor temperature |
-| Vorlauf Isttemperatur | °C | Supply temperature (actual) |
-| Vorlauf Solltemperatur | °C | Supply temperature (target) |
-| Ruecklauftemperatur | °C | Return temperature |
-| Kessel Isttemperatur | °C | Boiler temperature (actual) |
-| Kessel Solltemperatur | °C | Boiler temperature (target) |
-| Speicher Isttemperatur | °C | Storage tank temperature |
-| Raum Isttemperatur | °C | Room temperature (actual) |
-| Volumenstrom | l/h | Flow rate |
-| Pumpenlaufzeit | h | Pump runtime |
-| Kompressorlaufzeit | h | Compressor runtime |
-| Heizkurve | - | Heating curve |
-| Programmschalter | - | Program switch status |
-| Warmwasser aktiv | - | Hot water active |
-| Aktueller Fehler | - | Current error code |
+## Sensors
+
+### Heating circuit (HC1)
+- Außentemperatur (outdoor)
+- Vorlauf Ist-/Solltemperatur (supply actual/target)
+- Rücklauftemperatur (return)
+- Kessel Ist-/Solltemperatur (boiler)
+- Speicher Isttemperatur (storage tank)
+- Volumenstrom (l/h)
+- Pumpenlaufzeit, Kompressorlaufzeit (h)
+- Heizkurve, Programmschalter, Aktueller Fehler
+- TVBH, TVBH-Mix, TVBH1 temperatures
+
+### Hot water (HG1)
+- Same sensors as HC1 mirrored for the hot water circuit
+
+### Cloud / Gateway
+- `binary_sensor.daikin_gateway_online` - true if RoCon G1 had cloud contact within threshold
+- `binary_sensor.daikin_canbus_online` - true if RoCon G1 received CanBus data from heat pump within threshold
+- `sensor.daikin_seconds_since_gateway_contact`
+- `sensor.daikin_seconds_since_canbus_contact`
+- `sensor.daikin_last_gateway_contact` (timestamp)
+- `sensor.daikin_last_canbus_contact` (timestamp)
+- `sensor.daikin_firmware_version`
+
+## Auto-Reboot of the RoCon G1
+
+The RoCon G1 has a tendency to lose its CanBus or cloud connection occasionally. A common solution is to put the gateway on a smart plug and reboot it automatically when the binary sensor goes offline.
+
+Example automation:
+
+```yaml
+alias: Daikin RoCon G1 Auto-Reboot
+mode: single
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.daikin_gateway_online
+    to: "off"
+    for:
+      minutes: 5
+conditions:
+  - condition: template
+    value_template: >
+      {% set last_reboot_ts = state_attr('input_datetime.daikin_last_reboot', 'timestamp') %}
+      {% if last_reboot_ts is none %}
+        true
+      {% else %}
+        {{ (now().timestamp() - last_reboot_ts) > 1800 }}
+      {% endif %}
+actions:
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.daikin_last_reboot
+    data:
+      datetime: "{{ now() }}"
+  - action: switch.turn_off
+    target:
+      entity_id: switch.shelly_rocong1
+  - delay: { seconds: 30 }
+  - action: switch.turn_on
+    target:
+      entity_id: switch.shelly_rocong1
+```
 
 ## Notes
 
-- The integration polls the Daikin cloud API. Setting the scan interval too low (< 60s) may cause rate limiting.
-- Session cookies are valid for 6 hours and are automatically renewed.
-- This integration is **read-only** - it cannot change settings on your heating system.
+- The integration polls the Daikin cloud API. The default scan interval of 120 seconds is a sensible starting point. Below 60 seconds is not recommended.
+- Session cookies are valid for 6 hours and are automatically renewed (proactively after 5 hours).
+- The integration is **read-only** - it cannot change settings on the heat pump.
+- Daikin's cloud only delivers parameter changes - sensors that don't change frequently may have a `last_update` timestamp that lags behind. Use the gateway online binary sensor for connectivity detection.
 
 ## Background
 
 The RoCon G1 Gateway uploads data from your Daikin/Rotex heating system to the Daikin Control Cloud. This integration reads that data and makes it available in Home Assistant. It was reverse-engineered from the daikin-control.com web interface.
 
 Rotex Heating Systems was acquired by Daikin in 2020. The cloud service was rebranded from rotex-control.com to daikin-control.com.
+
+## Changelog
+
+- **1.2.1** - Configurable offline threshold for gateway/canbus binary sensors
+- **1.2.0** - Cloud gateway status binary sensors
+- **1.1.0** - Persistent sensor values (RestoreSensor) - survive restarts
+- **1.0.9** - Resilient error handling (retries, longer timeouts, keep last value on transient errors)
+- **1.0.8** - Options flow to change scan interval without reinstall
+- **1.0.7** - Proactive session refresh + better session expiry handling
+- **1.0.6** - Handle 401/403 by re-logging in with fresh session
+- **1.0.5** - Whitelist approach: only key sensors created
+- **1.0.0** - Initial release
 
 ## License
 
