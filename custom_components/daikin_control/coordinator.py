@@ -25,16 +25,27 @@ class DaikinControlCoordinator(DataUpdateCoordinator):
         )
         self.api = api
         self._accumulated_data: dict[str, dict] = {}
+        self._installation_info: dict = {}
         self._consecutive_transient_failures: int = 0
-        # After this many consecutive transient failures, we give up and mark unavailable
         self._transient_failure_threshold: int = 5
+
+    @property
+    def installation_info(self) -> dict:
+        """Latest installation info (gateway status)."""
+        return self._installation_info
 
     async def _async_update_data(self) -> dict[str, dict]:
         try:
+            # Fetch installation info (gateway status) - lightweight, do first
+            try:
+                info = await self.api.get_installation_info()
+                self._installation_info = info
+            except DaikinControlTransientError as err:
+                _LOGGER.debug("Could not fetch installation info: %s", err)
+                # Don't fail the whole update for this - keep old info
+
             new_data = await self.api.get_latest_values()
-            # Reset transient failure counter on success
             self._consecutive_transient_failures = 0
-            # Merge new data into accumulated data
             for key, value in new_data.items():
                 existing = self._accumulated_data.get(key)
                 if existing is None or value.get("date", 0) > existing.get("date", 0):
@@ -54,7 +65,6 @@ class DaikinControlCoordinator(DataUpdateCoordinator):
                 self._transient_failure_threshold,
                 err,
             )
-            # Return previously accumulated data - sensors stay on last value
             return self._accumulated_data
         except DaikinControlApiError as err:
             raise UpdateFailed(f"Error fetching data: {err}") from err

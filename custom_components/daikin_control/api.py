@@ -7,6 +7,8 @@ import aiohttp
 
 from .const import BASE_URL, LOGIN_URL, PARAMETER_URL
 
+INFO_URL = f"{BASE_URL}/installation/info"
+
 _LOGGER = logging.getLogger(__name__)
 
 REST_API_URL = "https://api.rotex-control.com"
@@ -200,6 +202,76 @@ class DaikinControlApi:
                     await asyncio.sleep(RETRY_DELAY)
             except DaikinControlApiError as err:
                 # Non-transient error, don't retry
+                raise
+        assert last_err is not None
+        raise last_err
+
+    async def _fetch_installation_info_raw(self) -> dict:
+        """Single attempt to fetch installation info (gateway status)."""
+        session = await self._ensure_session()
+        if not self._logged_in:
+            if not await self._login_with_retry():
+                raise DaikinControlTransientError("Login failed after retries")
+
+        url = f"{INFO_URL}/{self._installation_id}"
+
+        try:
+            async with session.get(
+                url,
+                headers={
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "User-Agent": "Mozilla/5.0 (compatible; HomeAssistant/DaikinControl)",
+                },
+                allow_redirects=False,
+                ssl=True,
+            ) as resp:
+                if resp.status == 200:
+                    text = await resp.text()
+                    if text.strip().startswith("{"):
+                        import json
+                        return json.loads(text)
+                    _LOGGER.info("Info endpoint returned HTML, session expired")
+                    self._logged_in = False
+                    await self._close_and_reset_session()
+                    if await self._login_with_retry():
+                        return await self._fetch_installation_info_raw()
+                    raise DaikinControlTransientError("Re-login failed")
+                if resp.status in (301, 302, 401, 403):
+                    self._logged_in = False
+                    await self._close_and_reset_session()
+                    if await self._login_with_retry():
+                        return await self._fetch_installation_info_raw()
+                    raise DaikinControlTransientError("Re-login failed")
+                raise DaikinControlApiError(f"Info API error: {resp.status}")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            self._logged_in = False
+            raise DaikinControlTransientError(f"Info request error: {err}") from err
+
+    async def get_installation_info(self) -> dict:
+        """Get installation info with retries.
+
+        Returns dict like:
+        {
+            "installationId": "...",
+            "lastCanBusContact": <timestamp>,
+            "latestGatewayContact": <timestamp>,
+            "activeWithinLastHour": <bool>,
+            "swVersion": "..."
+        }
+        """
+        if self._logged_in and (time.time() - self._login_time) > self._session_max_age:
+            await self._close_and_reset_session()
+
+        last_err: Exception | None = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                return await self._fetch_installation_info_raw()
+            except DaikinControlTransientError as err:
+                last_err = err
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+            except DaikinControlApiError:
                 raise
         assert last_err is not None
         raise last_err

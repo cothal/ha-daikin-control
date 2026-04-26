@@ -73,6 +73,15 @@ async def async_setup_entry(
             if data.get("name", "") in ENABLED_BY_DEFAULT:
                 entities.append(DaikinControlSensor(coordinator, entry, key, data))
 
+    # Add cloud status sensors (always created)
+    entities.extend([
+        DaikinSecondsSinceGatewayContactSensor(coordinator, entry),
+        DaikinSecondsSinceCanBusContactSensor(coordinator, entry),
+        DaikinFirmwareVersionSensor(coordinator, entry),
+        DaikinLastGatewayContactSensor(coordinator, entry),
+        DaikinLastCanBusContactSensor(coordinator, entry),
+    ])
+
     async_add_entities(entities, update_before_add=False)
 
     # Listen for new parameters appearing in future updates
@@ -207,3 +216,122 @@ class DaikinControlSensor(CoordinatorEntity, RestoreSensor):
             attrs["last_update"] = self._last_update_iso
             attrs["stale"] = True
         return attrs
+
+
+import time as _time
+
+
+class _DaikinCloudInfoSensorBase(CoordinatorEntity, SensorEntity):
+    """Base class for sensors that read from coordinator.installation_info."""
+
+    def __init__(
+        self, coordinator: DaikinControlCoordinator, entry: ConfigEntry
+    ) -> None:
+        super().__init__(coordinator)
+        self._installation_id = entry.data.get("installation_id")
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, f"{self._installation_id}_cloud")},
+            "name": f"Daikin {self._installation_id} Cloud",
+            "manufacturer": "Daikin/Rotex",
+            "model": "Cloud Gateway",
+        }
+
+
+class DaikinSecondsSinceGatewayContactSensor(_DaikinCloudInfoSensorBase):
+    _attr_name = "Sekunden seit Gateway-Kontakt"
+    _attr_icon = "mdi:timer-sand"
+    _attr_native_unit_of_measurement = "s"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"daikin_control_{self._installation_id}_seconds_since_gateway"
+        )
+
+    @property
+    def native_value(self):
+        info = self.coordinator.installation_info
+        ts = info.get("latestGatewayContact") if info else None
+        if ts is None:
+            return None
+        return int(_time.time() - ts)
+
+
+class DaikinSecondsSinceCanBusContactSensor(_DaikinCloudInfoSensorBase):
+    _attr_name = "Sekunden seit CanBus-Kontakt"
+    _attr_icon = "mdi:timer-sand"
+    _attr_native_unit_of_measurement = "s"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"daikin_control_{self._installation_id}_seconds_since_canbus"
+        )
+
+    @property
+    def native_value(self):
+        info = self.coordinator.installation_info
+        ts = info.get("lastCanBusContact") if info else None
+        if ts is None:
+            return None
+        return int(_time.time() - ts)
+
+
+class DaikinFirmwareVersionSensor(_DaikinCloudInfoSensorBase):
+    _attr_name = "Firmware-Version"
+    _attr_icon = "mdi:chip"
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"daikin_control_{self._installation_id}_firmware"
+        )
+
+    @property
+    def native_value(self):
+        info = self.coordinator.installation_info
+        return info.get("swVersion") if info else None
+
+
+class DaikinLastGatewayContactSensor(_DaikinCloudInfoSensorBase):
+    _attr_name = "Letzter Gateway-Kontakt"
+    _attr_icon = "mdi:clock-outline"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"daikin_control_{self._installation_id}_last_gateway_contact"
+        )
+
+    @property
+    def native_value(self):
+        info = self.coordinator.installation_info
+        ts = info.get("latestGatewayContact") if info else None
+        if ts is None:
+            return None
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
+class DaikinLastCanBusContactSensor(_DaikinCloudInfoSensorBase):
+    _attr_name = "Letzter CanBus-Kontakt"
+    _attr_icon = "mdi:clock-outline"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"daikin_control_{self._installation_id}_last_canbus_contact"
+        )
+
+    @property
+    def native_value(self):
+        info = self.coordinator.installation_info
+        ts = info.get("lastCanBusContact") if info else None
+        if ts is None:
+            return None
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
