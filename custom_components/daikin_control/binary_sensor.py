@@ -11,14 +11,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_OFFLINE_THRESHOLD, DEFAULT_OFFLINE_THRESHOLD, DOMAIN
 from .coordinator import DaikinControlCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-# Threshold: gateway is considered offline if last contact > this many seconds ago
-GATEWAY_OFFLINE_THRESHOLD_SEC = 600  # 10 minutes
-CANBUS_OFFLINE_THRESHOLD_SEC = 600
 
 
 async def async_setup_entry(
@@ -46,6 +42,9 @@ class _DaikinCloudBinarySensorBase(CoordinatorEntity, BinarySensorEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._installation_id = entry.data.get("installation_id")
+        self._threshold = entry.options.get(
+            CONF_OFFLINE_THRESHOLD, DEFAULT_OFFLINE_THRESHOLD
+        )
         self._attr_device_info = {
             "identifiers": {(DOMAIN, f"{self._installation_id}_cloud")},
             "name": f"Daikin {self._installation_id} Cloud",
@@ -74,7 +73,7 @@ class DaikinGatewayOnlineSensor(_DaikinCloudBinarySensorBase):
         last_contact = info.get("latestGatewayContact")
         if last_contact is None:
             return None
-        return (time.time() - last_contact) < GATEWAY_OFFLINE_THRESHOLD_SEC
+        return (time.time() - last_contact) < self._threshold
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -112,7 +111,7 @@ class DaikinCanBusOnlineSensor(_DaikinCloudBinarySensorBase):
         last_contact = info.get("lastCanBusContact")
         if last_contact is None:
             return None
-        return (time.time() - last_contact) < CANBUS_OFFLINE_THRESHOLD_SEC
+        return (time.time() - last_contact) < self._threshold
 
     @property
     def extra_state_attributes(self) -> dict:

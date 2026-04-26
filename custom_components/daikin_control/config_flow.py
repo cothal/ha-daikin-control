@@ -9,9 +9,11 @@ from homeassistant.core import callback
 from .api import DaikinControlApi
 from .const import (
     CONF_INSTALLATION_ID,
+    CONF_OFFLINE_THRESHOLD,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
+    DEFAULT_OFFLINE_THRESHOLD,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -86,6 +88,9 @@ class DaikinControlOptionsFlow(config_entries.OptionsFlow):
             CONF_SCAN_INTERVAL,
             entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
+        current_threshold = entry.options.get(
+            CONF_OFFLINE_THRESHOLD, DEFAULT_OFFLINE_THRESHOLD
+        )
 
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
@@ -97,6 +102,9 @@ class DaikinControlOptionsFlow(config_entries.OptionsFlow):
                     vol.Required(
                         CONF_SCAN_INTERVAL, default=current_interval
                     ): vol.All(int, vol.Range(min=30, max=3600)),
+                    vol.Required(
+                        CONF_OFFLINE_THRESHOLD, default=current_threshold
+                    ): vol.All(int, vol.Range(min=60, max=3600)),
                 }
             ),
         )

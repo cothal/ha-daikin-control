@@ -3,6 +3,7 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_INSTALLATION_ID = "installation_id"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_OFFLINE_THRESHOLD = "offline_threshold"
 
 BASE_URL = "https://www.daikin-control.com"
 LOGIN_URL = f"{BASE_URL}/login_check"
@@ -10,6 +11,7 @@ PARAMETER_URL = f"{BASE_URL}/parameter"
 PARAMETERNAME_URL = f"{BASE_URL}/parametername"
 
 DEFAULT_SCAN_INTERVAL = 120  # seconds
+DEFAULT_OFFLINE_THRESHOLD = 600  # seconds (10 min)
 
 # Parameter definitions: name -> (friendly_name, unit, device_class, icon)
 PARAMETER_MAP = {

@@ -21,9 +21,10 @@
     "step": {
       "init": {
         "title": "Daikin Control Cloud Optionen",
-        "description": "Abfrageintervall anpassen (30-3600 Sekunden)",
+        "description": "Abfrageintervall und Offline-Schwelle anpassen",
         "data": {
-          "scan_interval": "Abfrageintervall (Sekunden)"
+          "scan_interval": "Abfrageintervall (Sekunden, 30-3600)",
+          "offline_threshold": "Offline-Schwelle Gateway (Sekunden, 60-3600)"
         }
       }
     }

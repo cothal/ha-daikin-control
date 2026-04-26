@@ -21,9 +21,10 @@
     "step": {
       "init": {
         "title": "Daikin Control Cloud Options",
-        "description": "Adjust the scan interval (30-3600 seconds)",
+        "description": "Adjust scan interval and offline threshold",
         "data": {
-          "scan_interval": "Scan interval (seconds)"
+          "scan_interval": "Scan interval (seconds, 30-3600)",
+          "offline_threshold": "Gateway offline threshold (seconds, 60-3600)"
         }
       }
     }
