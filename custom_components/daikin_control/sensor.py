@@ -25,6 +25,15 @@ DEVICE_TYPE_NAMES = {
 }
 
 # Parameters that should be ENABLED by default (the important ones)
+# Parameters whose value is a status/text string, not a numeric measurement.
+# These must NOT get state_class MEASUREMENT (recorder rejects non-numeric state).
+NON_NUMERIC_PARAMS = {
+    "cPROGRAMMSCHALTER",
+    "cFEHLER_AKTUELL",
+    "cWW_AKTIV",
+    "cEINMAL_WW_AKTIV",
+}
+
 ENABLED_BY_DEFAULT = {
     "cAUSSENTEMP",
     "cAUSSENTEMP_WAERMEPUMPE",
@@ -144,7 +153,12 @@ class DaikinControlSensor(CoordinatorEntity, RestoreSensor):
             self._attr_icon = "mdi:information-outline"
 
         self._attr_unique_id = f"daikin_control_{entry.data.get('installation_id')}_{key}"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        # state_class MEASUREMENT requires numeric state. Non-numeric status
+        # params (fault code, program switch, active flags) fall through to a
+        # raw string in native_value, which the recorder rejects on a
+        # measurement entity. Only set state_class for numeric parameters.
+        if self._param_name not in NON_NUMERIC_PARAMS:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
         # Only enable important sensors by default, disable the rest
         if self._param_name not in ENABLED_BY_DEFAULT:
